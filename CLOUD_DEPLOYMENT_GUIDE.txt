@@ -1,0 +1,65 @@
+GRADE R AI GAMES STUDIO - CLOUD DEPLOYMENT GUIDE (OPTION B)
+===========================================================
+
+This guide explains how to deploy your app so users can connect via the internet without worrying about local IP addresses.
+
+ARCHITECTURE
+------------
+1. **Frontend (React App)**: Deployed on Vercel/Netlify.
+2. **Backend (WebSocket Server)**: Deployed on Railway/Render (needs a persistent server).
+
+---
+
+PART 1: DEPLOY THE SERVER (Backend)
+-----------------------------------
+Services like Vercel cannot host WebSockets directly because they are serverless. You must use a service like Railway (easiest) or Render.
+
+**Option 1: Railway (Recommended)**
+1. Push your code to GitHub.
+2. Go to [Railway.app](https://railway.app) and login.
+3. Click "New Project" -> "Deploy from GitHub repo".
+4. Select your repo.
+5. Railway will detect `server/index.js` but we need to tell it to run that instead of the default.
+6. Go to **Settings** -> **Build & Deploy**.
+   - **Start Command**: `node server/index.js`
+7. Railway will deploy. Once finished, it will give you a public URL (e.g., `grade-r-server.up.railway.app`).
+8. Copy this URL.
+
+**Option 2: Render**
+1. Go to [Render.com](https://render.com).
+2. Create "New Web Service".
+3. Connect GitHub repo.
+4. **Build Command**: `npm install`
+5. **Start Command**: `node server/index.js`
+6. Deploy. Copy the URL (e.g., `grade-r-games.onrender.com`).
+   *Note: Render free tier spins down after inactivity, so the first connection might take 30s.*
+
+---
+
+PART 2: DEPLOY THE WEB APP (Frontend)
+-------------------------------------
+1. Go to [Vercel.com](https://vercel.com).
+2. "Add New..." -> "Project".
+3. Select your GitHub repo.
+4. **Configure Environment Variables**:
+   - Vercel needs to know where your WebSocket server is.
+   - Name: `VITE_WS_URL`
+   - Value: `wss://grade-r-server.up.railway.app` (Use the URL from Part 1. Note: Change `https` to `wss`).
+5. Click **Deploy**.
+6. Vercel will give you a URL (e.g., `grade-r-games.vercel.app`).
+
+---
+
+PART 3: VERIFICATION
+--------------------
+1. Open `grade-r-games.vercel.app` on your computer.
+2. It should show a session ID.
+3. Use your phone to scan the QR code.
+4. If it works, the phone will connect to the Railway/Render server, which forwards messages to the Vercel app.
+
+---
+
+PART 4: "CONNECT ONCE" FEATURE
+------------------------------
+The app is now configured so that once a phone connects successfully, it saves the Session ID.
+Next time the user opens the URL on their phone, they will see a big "REJOIN CLASS" button instead of needing to scan the QR code again.

@@ -1,0 +1,146 @@
+GRADE R AI GAMES STUDIO - DEPLOYMENT & WEBSOCKET ARCHITECTURE GUIDE
+===================================================================
+
+1. CURRENT ARCHITECTURE (LOCAL DEVELOPMENT)
+-------------------------------------------
+Currently, your app functions as a "Local Network Application".
+- Host (Teacher): Runs the React App + Node.js WebSocket Server on their computer.
+- Clients (Phones): Connect via Wi-Fi to the Teacher's IP address (e.g., 192.168.1.5:8080).
+
+Current Flow:
+1. `npm run server` starts the WebSocket Server on port 8080.
+2. `npm run dev` starts the UI on port 5173.
+3. The UI connects to `ws://localhost:8080`.
+4. The Phones connect to `ws://[TEACHER_IP]:8080`.
+
+WHY THIS BREAKS IN DEPLOYMENT:
+If you deploy the React App to the web (e.g., Vercel, Netlify), the Node.js WebSocket server does not go with it. Vercel is "Serverless" and kills connections after 10 seconds. You need a persistent server.
+
+-------------------------------------------
+
+2. THE "CONNECT ONCE" STRATEGY (DEPLOYMENT PATHS)
+-------------------------------------------
+To achieve a seamless "Connect Once" experience where users don't need to re-scan QR codes constantly, you have two options.
+
+OPTION A: THE DESKTOP APP (Recommended for Speed/Performance)
+-------------------------------------------------------------
+You package the app using Electron. The Teacher downloads an .exe/.dmg.
+- The app starts a local WebSocket server inside the teacher's computer automatically.
+- Latency is near zero (local Wi-Fi).
+- **"Connect Once" Logic:** The phone saves the Teacher's IP/ID in LocalStorage. When the phone opens the webapp, it attempts to reconnect to that last known IP.
+
+OPTION B: THE CLOUD SERVER (Recommended for Ease of Access)
+-----------------------------------------------------------
+You host the Node server on a persistent cloud provider (like Railway, Render, or a VPS).
+- Latency is higher (requires Internet).
+- **"Connect Once" Logic:** The WebSocket URL is static (e.g., `wss://api.grade-r-games.com`). The phone always connects to this URL. The Session ID acts as the "Room".
+
+-------------------------------------------
+
+3. HOW TO PACKAGE FOR DESKTOP (ELECTRON)
+-------------------------------------------
+This is the best route for schools as it doesn't rely on fast school internet, only local Wi-Fi.
+
+Step 1: Install Electron
+   npm install --save-dev electron electron-builder concurrently wait-on
+
+Step 2: Create `electron/main.js`
+   This file will start your existing WebSocket server (`server/index.js`) in the background when the app opens.
+
+   ```javascript
+   const { app, BrowserWindow } = require('electron');
+   const path = require('path');
+   const { fork } = require('child_process'); // To run your WS server
+
+   let serverProcess;
+
+   function createWindow() {
+     const win = new BrowserWindow({ width: 1200, height: 800 });
+     
+     // In production, load the built React files
+     // In dev, load localhost:5173
+     const startUrl = process.env.ELECTRON_START_URL || `file://${path.join(__dirname, '../dist/index.html')}`;
+     win.loadURL(startUrl);
+
+     // START THE WEBSOCKET SERVER INTERNALLY
+     // This uses your existing server/index.js
+     serverProcess = fork(path.join(__dirname, '../server/index.js'));
+   }
+
+   app.whenReady().then(createWindow);
+   
+   app.on('will-quit', () => {
+     // Kill the server when app closes
+     if (serverProcess) serverProcess.kill();
+   });
+   ```
+
+Step 3: Update `package.json` scripts
+   "electron:dev": "concurrently \"npm run server\" \"npm run dev\" \"wait-on http://localhost:5173 && electron .\"",
+   "electron:build": "npm run build && electron-builder"
+
+-------------------------------------------
+
+4. IMPLEMENTING "CONNECT ONCE" (CODE CHANGES)
+-------------------------------------------
+To make it so users connect once and never have to scan again, modify `src/context/SessionContext.tsx` and `WebSocketContext.tsx`.
+
+LOGIC:
+1. When a controller joins successfully, save the `sessionId` and `hostIp` in the phone's `localStorage`.
+2. When the phone opens `yoursite.com/controller`, check `localStorage`.
+3. If data exists, attempt to auto-reconnect.
+
+UPDATE `src/context/WebSocketContext.tsx`:
+Change the `connect` function to accept a dynamic URL, not just window.location.
+
+```typescript
+// Allow passing a specific IP to connect to (retrieved from storage)
+const connect = useCallback((manualIp?: string) => {
+    // Priority: Manual IP -> URL Query Param -> Window Hostname
+    const targetIp = manualIp || new URLSearchParams(window.location.search).get('ip') || window.location.hostname;
+    
+    // Determine Protocol (ws vs wss)
+    const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+    const wsUrl = `${protocol}://${targetIp}:8080`;
+    
+    // ... existing connection logic ...
+}, []);
+```
+
+UPDATE `src/pages/Controller.tsx`:
+Add auto-reconnect logic on mount.
+
+```typescript
+useEffect(() => {
+  const savedSession = localStorage.getItem('last_session_id');
+  const savedIp = localStorage.getItem('last_host_ip');
+
+  // If we are not currently in a session (no URL param), try to recover
+  if (!sessionId && savedSession && savedIp) {
+      // Logic to redirect or auto-connect using stored values
+      window.location.href = `/?session=${savedSession}&ip=${savedIp}#/controller`;
+  }
+}, []);
+```
+
+-------------------------------------------
+
+5. SUMMARY CHECKLIST FOR DEPLOYMENT
+-------------------------------------------
+
+[ ] 1. Decide: Cloud Hosting vs. Local Desktop App.
+       (I recommend Desktop App for game performance).
+
+[ ] 2. If Desktop App:
+       - Set up Electron.
+       - Ensure `server/index.js` binds to `0.0.0.0` (it already does).
+       - Ensure the PC firewall allows traffic on port 8080.
+
+[ ] 3. If Cloud Hosting:
+       - Deploy `server/index.js` to a service that supports WebSockets (Railway.app, Render.com, Fly.io).
+       - Update the React app to point to `wss://your-app-url.com` instead of `ws://${location.hostname}:8080`.
+
+[ ] 4. Polish:
+       - Add the `localStorage` logic to the Controller.
+       - Add a "History" list on the Controller landing page ("Reconnect to Mr. Smith's Class").
+

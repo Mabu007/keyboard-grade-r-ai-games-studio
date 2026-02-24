@@ -1,0 +1,6 @@
+{
+  "name": "Keyboard Grade R AI Games Studio",
+  "description": "A modular game studio for early childhood education using a central screen and phone controllers via WebSockets.",
+  "requestFramePermissions": []
+}
+

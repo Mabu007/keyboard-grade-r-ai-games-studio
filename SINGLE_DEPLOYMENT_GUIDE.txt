@@ -1,0 +1,40 @@
+GRADE R AI GAMES STUDIO - SINGLE DEPLOYMENT GUIDE (RAILWAY)
+===========================================================
+
+You can deploy the entire application (Web App + Server) to Railway as a single service. 
+Because we converted the server to use Express and serve the static files, you don't need Vercel.
+
+STEP 1: PREPARE
+---------------
+1. Ensure your project is pushed to GitHub.
+2. Verify `package.json` has the "start" script: `"start": "node server/index.js"`.
+
+STEP 2: DEPLOY ON RAILWAY
+-------------------------
+1. Log in to [Railway.app](https://railway.app).
+2. Click **New Project** -> **Deploy from GitHub repo**.
+3. Select your repository.
+4. Click **Deploy Now**.
+
+Railway will automatically:
+1. Detect it is a Node.js app.
+2. Run `npm install`.
+3. Run `npm run build` (This creates the 'dist' folder with your React app).
+4. Run `npm start` (This starts your Express/WebSocket server).
+
+STEP 3: CONFIGURATION (Optional)
+--------------------------------
+Railway usually detects everything automatically.
+If the build fails, go to Settings -> Build Command and ensure it is `npm run build`.
+
+STEP 4: CONNECTING
+------------------
+1. Once deployed, Railway gives you a public URL (e.g., `https://grade-r-games-production.up.railway.app`).
+2. Open this URL in your browser.
+3. It will load the React App *and* connect to the WebSocket on the same URL.
+4. When you scan the QR code, your phone will also go to this URL and connect seamlessly.
+
+TROUBLESHOOTING
+---------------
+- If you see "Cannot GET /", it means the `npm run build` step didn't run or fail, or the `dist` folder wasn't found. Check Railway build logs.
+- If phones can't connect, ensure you are using `https://` (Railway handles SSL automatically).
